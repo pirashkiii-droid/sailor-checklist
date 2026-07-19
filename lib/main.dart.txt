@@ -1,0 +1,190 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:uuid/uuid.dart';
+
+void main() {
+  runApp(const SailorChecklistApp());
+}
+
+class SailorChecklistApp extends StatelessWidget {
+  const SailorChecklistApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'چک‌لیست دریانورد',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const ChecklistScreen(),
+    );
+  }
+}
+
+class ChecklistItem {
+  final String id;
+  String title;
+  bool isChecked;
+
+  ChecklistItem({required this.id, required this.title, this.isChecked = false});
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'isChecked': isChecked,
+      };
+
+  factory ChecklistItem.fromJson(Map<String, dynamic> json) => ChecklistItem(
+        id: json['id'],
+        title: json['title'],
+        isChecked: json['isChecked'],
+      );
+}
+
+class ChecklistScreen extends StatefulWidget {
+  const ChecklistScreen({super.key});
+
+  @override
+  State<ChecklistScreen> createState() => _ChecklistScreenState();
+}
+
+class _ChecklistScreenState extends State<ChecklistScreen> {
+  final List<ChecklistItem> items = [];
+  final TextEditingController _controller = TextEditingController();
+  final Uuid uuid = const Uuid();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? data = prefs.getString('checklist');
+    if (data != null) {
+      final List<dynamic> jsonList = json.decode(data);
+      setState(() {
+        items.addAll(jsonList.map((e) => ChecklistItem.fromJson(e)).toList());
+      });
+    }
+  }
+
+  Future<void> _saveItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String data = json.encode(items.map((e) => e.toJson()).toList());
+    await prefs.setString('checklist', data);
+  }
+
+  void _addItem() {
+    if (_controller.text.trim().isEmpty) return;
+    setState(() {
+      items.add(ChecklistItem(
+        id: uuid.v4(),
+        title: _controller.text.trim(),
+      ));
+    });
+    _controller.clear();
+    _saveItems();
+  }
+
+  void _toggleCheck(ChecklistItem item) {
+    setState(() {
+      item.isChecked = !item.isChecked;
+    });
+    _saveItems();
+  }
+
+  void _deleteItem(ChecklistItem item) {
+    setState(() {
+      items.remove(item);
+    });
+    _saveItems();
+  }
+
+  List<ChecklistItem> get forgottenItems =>
+      items.where((item) => !item.isChecked).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('چک‌لیست دریانوردان', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      labelText: 'نام آیتم جدید (مدارک یا وسایل)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FloatingActionButton(
+                  onPressed: _addItem,
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: items.isEmpty
+                  ? const Center(child: Text('هنوز آیتمی اضافه نشده\nآیتم اضافه کنید', textAlign: TextAlign.center))
+                  : ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return Card(
+                          color: item.isChecked ? Colors.green[50] : null,
+                          child: ListTile(
+                            leading: Checkbox(
+                              value: item.isChecked,
+                              onChanged: (_) => _toggleCheck(item),
+                            ),
+                            title: Text(
+                              item.title,
+                              style: TextStyle(
+                                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteItem(item),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            if (forgottenItems.isNotEmpty) ...[
+              const Divider(),
+              const Text(
+                '⚠️ اقلام فراموش شده:',
+                style: TextStyle(fontSize: 18, color: Colors.red, fontWeight: FontWeight.bold),
+              ),
+              ...forgottenItems.map((item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text('• ${item.title}', style: const TextStyle(color: Colors.red)),
+                  )),
+            ] else if (items.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '🎉 همه اقلام تیک خورده! آماده حرکت',
+                  style: TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
