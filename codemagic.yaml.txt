@@ -1,27 +1,14 @@
 workflows:
-  android-workflow:
-    name: Android Build
+  sailor-android-build:
+    name: Sailor Checklist Android Build
     instance_type: mac_mini_m2
-    max_build_duration: 60
+    max_build_duration: 45
     environment:
       flutter: stable
-      xcode: latest
-      vars:
-        CM_FLUTTER_VERSION: "3.24.0"
-    
     scripts:
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
-
+      - name: Fetch dependencies
+        script: flutter pub get
       - name: Build APK
-        script: |
-          flutter build apk --release
-
+        script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
-
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com  # pirashkiii@gmail.com
